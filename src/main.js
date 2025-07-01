@@ -1,5 +1,10 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
+// For screen border glow
+const { screen } = require('electron');
+const screenBounds = screen.getPrimaryDisplay().bounds;
+// Create borderless overlay window covering entire screen
+
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -7,6 +12,15 @@ if (require('electron-squirrel-startup')) {
 }
 
 let mainWindow;
+
+
+// For system-wide overlay
+const overlayWindow = new BrowserWindow({
+  frame: false,
+  alwaysOnTop: true,
+  skipTaskbar: true,
+  // Position above taskbar
+});
 
 const createWindow = () => {
   // Create the browser window.

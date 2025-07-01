@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { Play, Pause, RotateCcw, Minus, X, Clock, Coffee, Zap } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Play, Pause, RotateCcw, Minus, X, Clock, Coffee, Zap, Settings, Monitor, Timer as TimerIcon } from 'lucide-react';
 
 const FocusTimer = () => {
   // Store timer state for each mode separately
@@ -10,6 +10,15 @@ const FocusTimer = () => {
   });
   
   const [selectedMode, setSelectedMode] = useState('focus');
+  const [isMinimized, setIsMinimized] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [settings, setSettings] = useState({
+    screenGlowEnabled: true,
+    glowInterval: 10, // seconds
+    overlayTimerEnabled: true,
+    lastGlowTime: 0
+  });
+  const [shouldGlow, setShouldGlow] = useState(false);
 
   const modes = {
     focus: { duration: 25 * 60, label: 'Focus', icon: Zap, gradient: 'linear-gradient(135deg, #3b82f6, #8b5cf6)' },
@@ -28,12 +37,14 @@ const FocusTimer = () => {
   const progress = currentState.totalTime > 0 ? ((currentState.totalTime - currentState.timeLeft) / currentState.totalTime) * 100 : 0;
   const currentMode = modes[selectedMode];
 
-  // Timer effect - only run for the currently selected mode
+  // Timer effect with glow trigger
   useEffect(() => {
     let interval = null;
     
     if (currentState.isRunning && currentState.timeLeft > 0) {
       interval = setInterval(() => {
+        const currentTime = Date.now();
+        
         setTimerStates(prev => {
           const newStates = { ...prev };
           if (newStates[selectedMode].timeLeft > 0) {
@@ -47,7 +58,7 @@ const FocusTimer = () => {
               ...newStates[selectedMode],
               isRunning: false
             };
-            // Show completion notification if available
+            // Show completion notification
             if ('Notification' in window && Notification.permission === 'granted') {
               new Notification('Timer Complete!', {
                 body: `Your ${currentMode.label} session is complete!`,
@@ -56,13 +67,23 @@ const FocusTimer = () => {
           }
           return newStates;
         });
+
+        // Check if we should trigger glow effect
+        if (settings.screenGlowEnabled && 
+            currentTime - settings.lastGlowTime >= settings.glowInterval * 1000) {
+          setShouldGlow(true);
+          setSettings(prev => ({ ...prev, lastGlowTime: currentTime }));
+          
+          // Reset glow after 2 seconds
+          setTimeout(() => setShouldGlow(false), 2000);
+        }
       }, 1000);
     }
 
     return () => {
       if (interval) clearInterval(interval);
     };
-  }, [currentState.isRunning, currentState.timeLeft, selectedMode, currentMode.label]);
+  }, [currentState.isRunning, currentState.timeLeft, selectedMode, currentMode.label, settings.screenGlowEnabled, settings.glowInterval, settings.lastGlowTime]);
 
   const handleStart = () => {
     setTimerStates(prev => ({
@@ -72,6 +93,7 @@ const FocusTimer = () => {
         isRunning: true
       }
     }));
+    setSettings(prev => ({ ...prev, lastGlowTime: Date.now() }));
   };
 
   const handlePause = () => {
@@ -97,7 +119,6 @@ const FocusTimer = () => {
   };
 
   const handleModeChange = (mode) => {
-    // Pause current timer if running
     if (currentState.isRunning) {
       setTimerStates(prev => ({
         ...prev,
@@ -107,11 +128,11 @@ const FocusTimer = () => {
         }
       }));
     }
-    
     setSelectedMode(mode);
   };
 
   const handleMinimize = () => {
+    setIsMinimized(true);
     if (window.electronAPI) {
       window.electronAPI.minimize();
     }
@@ -123,6 +144,177 @@ const FocusTimer = () => {
     }
   };
 
+  const toggleSettings = () => {
+    setShowSettings(!showSettings);
+  };
+
+  const updateSetting = (key, value) => {
+    setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  // Minimized overlay component
+  const MinimizedOverlay = () => (
+    <div style={{
+      position: 'fixed',
+      top: '20px',
+      right: '20px',
+      width: '280px',
+      height: '60px',
+      background: 'rgba(0, 0, 0, 0.9)',
+      backdropFilter: 'blur(20px)',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      borderRadius: '12px',
+      display: 'flex',
+      alignItems: 'center',
+      padding: '12px 16px',
+      gap: '12px',
+      zIndex: 9999,
+      boxShadow: '0 8px 32px rgba(0, 0, 0, 0.3)'
+    }}>
+      <div style={{
+        width: '36px',
+        height: '36px',
+        borderRadius: '50%',
+        background: currentMode.gradient,
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        flexShrink: 0
+      }}>
+        <currentMode.icon size={18} color="white" />
+      </div>
+      
+      <div style={{ flex: 1 }}>
+        <div style={{
+          color: 'white',
+          fontSize: '18px',
+          fontFamily: '"Courier New", monospace',
+          fontWeight: 'bold',
+          marginBottom: '2px'
+        }}>
+          {formatTime(currentState.timeLeft)}
+        </div>
+        <div style={{
+          width: '100%',
+          height: '4px',
+          background: 'rgba(255, 255, 255, 0.2)',
+          borderRadius: '2px',
+          overflow: 'hidden'
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${progress}%`,
+            background: currentMode.gradient,
+            borderRadius: '2px',
+            transition: 'width 0.3s ease'
+          }} />
+        </div>
+      </div>
+      
+      <button
+        onClick={() => setIsMinimized(false)}
+        style={{
+          width: '32px',
+          height: '32px',
+          border: 'none',
+          borderRadius: '6px',
+          background: 'rgba(255, 255, 255, 0.1)',
+          color: 'white',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          flexShrink: 0
+        }}
+      >
+        <Monitor size={16} />
+      </button>
+    </div>
+  );
+
+  // Settings panel component
+  const SettingsPanel = () => (
+    <div style={{
+      position: 'absolute',
+      top: '60px',
+      right: '16px',
+      width: '300px',
+      background: 'rgba(0, 0, 0, 0.95)',
+      backdropFilter: 'blur(20px)',
+      border: '1px solid rgba(255, 255, 255, 0.2)',
+      borderRadius: '12px',
+      padding: '20px',
+      zIndex: 1000,
+      color: 'white'
+    }}>
+      <h3 style={{ margin: '0 0 16px 0', fontSize: '16px', fontWeight: '600' }}>Settings</h3>
+      
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={settings.screenGlowEnabled}
+            onChange={(e) => updateSetting('screenGlowEnabled', e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          <span style={{ fontSize: '14px' }}>Screen Glow Effect</span>
+        </label>
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'block', fontSize: '14px', marginBottom: '8px' }}>
+          Glow Interval: {settings.glowInterval}s
+        </label>
+        <input
+          type="range"
+          min="5"
+          max="300"
+          step="5"
+          value={settings.glowInterval}
+          onChange={(e) => updateSetting('glowInterval', parseInt(e.target.value))}
+          style={{
+            width: '100%',
+            height: '4px',
+            background: 'rgba(255, 255, 255, 0.2)',
+            borderRadius: '2px',
+            outline: 'none'
+          }}
+        />
+        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: 'rgba(255, 255, 255, 0.6)' }}>
+          <span>5s</span>
+          <span>5min</span>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '16px' }}>
+        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={settings.overlayTimerEnabled}
+            onChange={(e) => updateSetting('overlayTimerEnabled', e.target.checked)}
+            style={{ margin: 0 }}
+          />
+          <span style={{ fontSize: '14px' }}>Minimized Overlay Timer</span>
+        </label>
+      </div>
+
+      <div style={{
+        padding: '12px',
+        background: 'rgba(59, 130, 246, 0.1)',
+        borderRadius: '8px',
+        fontSize: '12px',
+        color: 'rgba(255, 255, 255, 0.8)',
+        lineHeight: '1.4'
+      }}>
+        <strong>Note:</strong> Full screen glow and system overlay features require Electron integration for system-level access.
+      </div>
+    </div>
+  );
+
+  if (isMinimized && settings.overlayTimerEnabled) {
+    return <MinimizedOverlay />;
+  }
+
   return (
     <div style={{
       height: '100vh',
@@ -131,10 +323,14 @@ const FocusTimer = () => {
       backdropFilter: 'blur(24px)',
       borderRadius: '16px',
       overflow: 'hidden',
-      border: '1px solid rgba(255, 255, 255, 0.1)',
-      boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+      border: shouldGlow && settings.screenGlowEnabled ? '3px solid #3b82f6' : '1px solid rgba(255, 255, 255, 0.1)',
+      boxShadow: shouldGlow && settings.screenGlowEnabled 
+        ? '0 0 30px rgba(59, 130, 246, 0.8), 0 25px 50px -12px rgba(0, 0, 0, 0.25)' 
+        : '0 25px 50px -12px rgba(0, 0, 0, 0.25)',
       color: 'white',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif'
+      fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif',
+      transition: 'all 0.3s ease',
+      position: 'relative'
     }}>
       {/* Title Bar */}
       <div style={{
@@ -158,6 +354,24 @@ const FocusTimer = () => {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <button
+            onClick={toggleSettings}
+            style={{
+              width: '24px',
+              height: '24px',
+              borderRadius: '50%',
+              border: 'none',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              background: showSettings ? 'rgba(59, 130, 246, 0.3)' : 'rgba(255, 255, 255, 0.1)',
+              color: 'rgba(255, 255, 255, 0.6)',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <Settings size={12} />
+          </button>
           <button
             onClick={handleMinimize}
             style={{
@@ -196,6 +410,9 @@ const FocusTimer = () => {
           </button>
         </div>
       </div>
+
+      {/* Settings Panel */}
+      {showSettings && <SettingsPanel />}
 
       {/* Mode Selection */}
       <div style={{ padding: '16px' }}>
@@ -273,7 +490,7 @@ const FocusTimer = () => {
               stroke="rgba(255,255,255,0.1)"
               strokeWidth="2"
             />
-            {/* Progress circle - only show for current mode */}
+            {/* Progress circle */}
             <circle
               cx="50"
               cy="50"
