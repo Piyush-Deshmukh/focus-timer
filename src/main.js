@@ -1,10 +1,5 @@
 const { app, BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
-// For screen border glow
-const { screen } = require('electron');
-const screenBounds = screen.getPrimaryDisplay().bounds;
-// Create borderless overlay window covering entire screen
-
 
 // Handle creating/removing shortcuts on Windows when installing/uninstalling.
 if (require('electron-squirrel-startup')) {
@@ -13,33 +8,33 @@ if (require('electron-squirrel-startup')) {
 
 let mainWindow;
 
-
-// For system-wide overlay
-const overlayWindow = new BrowserWindow({
-  frame: false,
-  alwaysOnTop: true,
-  skipTaskbar: true,
-  // Position above taskbar
-});
-
 const createWindow = () => {
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 400,
+    width: 500,
     height: 500,
-    minWidth: 350,
+    minWidth: 500,
     minHeight: 450,
     frame: false,
     transparent: true,
     alwaysOnTop: true,
     resizable: true,
     titleBarStyle: 'hidden',
+    icon: app.isPackaged 
+          ? path.join(process.resourcesPath, 'assets', 'icon.ico')
+          : path.join(__dirname, '../../assets/icon.ico'),
     webPreferences: {
       nodeIntegration: false,
       contextIsolation: true,
       preload: path.join(__dirname, 'preload.js'),
     },
   });
+
+  // Set app name for notifications
+if (process.platform === 'win32') {
+  app.setAppUserModelId(app.name);
+}
+
 
   // Load the app
   if (MAIN_WINDOW_VITE_DEV_SERVER_URL) {
@@ -49,9 +44,9 @@ const createWindow = () => {
   }
 
   // Open DevTools in development
-  if (process.env.NODE_ENV === 'development') {
-    mainWindow.webContents.openDevTools();
-  }
+  // if (process.env.NODE_ENV === 'development') {
+  //   mainWindow.webContents.openDevTools();
+  // }
 };
 
 // App event listeners

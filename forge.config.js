@@ -5,13 +5,17 @@ module.exports = {
   packagerConfig: {
     asar: true,
     executableName: "focus-timer",
+    icon: "./assets/icon",
+    name: "Focus Timer", // Display name for the app
+    productName: "Focus Timer",
   },
   rebuildConfig: {},
   makers: [
     {
       name: '@electron-forge/maker-squirrel',
       config: {
-        name: "focus_timer"
+        name: "focus_timer",
+        setupIcon: "./assets/icon.ico",
       }
     },
     {
